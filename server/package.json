@@ -24,9 +24,7 @@
     "multer": "^1.4.5-lts.1",
     "node-cron": "^3.0.3",
     "nodemailer": "^6.10.0",
+    "prisma": "^6.4.1",
     "xlsx": "^0.18.5"
-  },
-  "devDependencies": {
-    "prisma": "^6.4.1"
   }
 }

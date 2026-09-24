@@ -7,7 +7,7 @@ services:
     runtime: node
     plan: free
     region: oregon
-    buildCommand: npm run install:all && npm run build:client && npx prisma generate --schema=server/prisma/schema.postgresql.prisma
+    buildCommand: npm run build
     startCommand: node server/entrypoint.js
     envVars:
       - key: NODE_ENV
