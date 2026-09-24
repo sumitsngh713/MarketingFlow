@@ -1,0 +1,373 @@
+// PostgreSQL Prisma Schema for MarketingFlow (Production)
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                  String            @id @default(uuid())
+  email               String            @unique
+  passwordHash        String
+  role                String            @default("EMPLOYEE")
+  firstName           String
+  lastName            String
+  phone               String?
+  employeeId          String?           @unique
+  designation         String?
+  department          String?
+  joiningDate         DateTime?
+  status              String            @default("ACTIVE")
+  mustChangePassword  Boolean           @default(false)
+  avatarUrl           String?
+  lastLoginAt         DateTime?
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+
+  attendances         Attendance[]
+  assignedLeads       Lead[]            @relation("AssignedLeads")
+  ownedCampaigns      Campaign[]        @relation("CampaignOwner")
+  followups           Followup[]        @relation("AssignedFollowups")
+  tasks               Task[]            @relation("AssignedTasks")
+  notifications       Notification[]
+  activityLogs        ActivityLog[]
+  linkedInMessages    LinkedInMessage[]
+  whatsAppMessages    WhatsAppMessage[]
+}
+
+model OrganisationSetting {
+  id                      String   @id @default("default-org")
+  orgName                 String   @default("MarketingFlow")
+  logoUrl                 String?
+  address                 String?  @default("100 Innovation Blvd, Tech Park, Suite 400")
+  timezone                String   @default("UTC")
+  workStartTime           String   @default("09:00")
+  workEndTime             String   @default("18:00")
+  lateThresholdMinutes    Int      @default(15)
+  workingDays             String   @default("Monday,Tuesday,Wednesday,Thursday,Friday")
+  defaultEmailDailyLimit  Int      @default(200)
+  defaultFollowupDelayDays Int     @default(3)
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+}
+
+model Attendance {
+  id                  String   @id @default(uuid())
+  userId              String
+  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date                String
+  checkInTime         DateTime?
+  checkOutTime        DateTime?
+  workingHoursMinutes Int      @default(0)
+  status              String   @default("PRESENT")
+  remarks             String?
+  manualOverride      Boolean  @default(false)
+  overriddenBy        String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@unique([userId, date])
+  @@index([date])
+  @@index([userId])
+}
+
+model Lead {
+  id                  String         @id @default(uuid())
+  leadNumber          String?        @unique
+  name                String
+  designation         String?
+  company             String?
+  email               String?
+  phone               String?
+  linkedinUrl         String?
+  whatsappNumber      String?
+  website             String?
+  industry            String?
+  location            String?
+  source              String?        @default("Manual")
+  assignedEmployeeId  String?
+  assignedEmployee    User?          @relation("AssignedLeads", fields: [assignedEmployeeId], references: [id], onDelete: SetNull)
+  status              String         @default("NEW")
+  tags                String?
+  notes               String?
+  lastContactedAt     DateTime?
+  nextFollowupDate    String?
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+
+  campaignLeads       CampaignLead[]
+  followups           Followup[]
+  linkedInMessages    LinkedInMessage[]
+  whatsAppMessages    WhatsAppMessage[]
+
+  @@index([email])
+  @@index([phone])
+  @@index([assignedEmployeeId])
+  @@index([status])
+}
+
+model Campaign {
+  id                  String          @id @default(uuid())
+  name                String
+  channel             String          @default("EMAIL")
+  status              String          @default("DRAFT")
+  ownerId             String?
+  owner               User?           @relation("CampaignOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  senderAccountId     String?
+  subject             String?
+  body                String?
+  intervalMinutes     Int             @default(5)
+  dailyLimit          Int             @default(50)
+  startDate           DateTime?
+  completedAt         DateTime?
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+
+  campaignLeads       CampaignLead[]
+  sequences           EmailSequence[]
+  linkedInMessages    LinkedInMessage[]
+  whatsAppMessages    WhatsAppMessage[]
+  followups           Followup[]
+
+  @@index([status])
+  @@index([channel])
+}
+
+model CampaignLead {
+  id              String       @id @default(uuid())
+  campaignId      String
+  campaign        Campaign     @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  leadId          String
+  lead            Lead         @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  currentStep     Int          @default(0)
+  status          String       @default("PENDING")
+  sentAt          DateTime?
+  openedAt        DateTime?
+  repliedAt       DateTime?
+  lastActionAt    DateTime?
+  errorReason     String?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  events          EmailEvent[]
+
+  @@unique([campaignId, leadId])
+  @@index([status])
+}
+
+model EmailAccount {
+  id                      String   @id @default(uuid())
+  accountName             String
+  senderName              String
+  senderEmail             String
+  smtpHost                String
+  smtpPort                Int      @default(587)
+  smtpUser                String
+  smtpPasswordEncrypted   String
+  encryption              String   @default("TLS")
+  dailySendingLimit       Int      @default(200)
+  sentToday               Int      @default(0)
+  status                  String   @default("ACTIVE")
+  lastError               String?
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  @@index([senderEmail])
+}
+
+model EmailTemplate {
+  id          String   @id @default(uuid())
+  name        String
+  subject     String
+  body        String
+  variables   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model EmailSequence {
+  id          String   @id @default(uuid())
+  campaignId  String
+  campaign    Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  stepNumber  Int
+  delayDays   Int
+  subject     String
+  body        String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([campaignId, stepNumber])
+}
+
+model EmailEvent {
+  id              String       @id @default(uuid())
+  campaignLeadId  String
+  campaignLead    CampaignLead @relation(fields: [campaignLeadId], references: [id], onDelete: Cascade)
+  eventType       String
+  trackingId      String?      @unique
+  metadata        String?
+  createdAt       DateTime     @default(now())
+
+  @@index([campaignLeadId])
+  @@index([eventType])
+}
+
+model LinkedInAccount {
+  id          String   @id @default(uuid())
+  accountName String
+  profileUrl  String
+  dailyLimit  Int      @default(30)
+  status      String   @default("ACTIVE")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model LinkedInMessage {
+  id          String    @id @default(uuid())
+  campaignId  String?
+  campaign    Campaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  leadId      String
+  lead        Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  employeeId  String?
+  employee    User?     @relation(fields: [employeeId], references: [id], onDelete: SetNull)
+  messageText String
+  status      String    @default("NOT_CONTACTED")
+  notes       String?
+  sentAt      DateTime?
+  repliedAt   DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([leadId])
+  @@index([status])
+}
+
+model WhatsAppAccount {
+  id                    String   @id @default(uuid())
+  accountName           String
+  phoneNumberId         String
+  businessAccountId     String
+  accessTokenEncrypted  String
+  dailyLimit            Int      @default(500)
+  status                String   @default("ACTIVE")
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+}
+
+model WhatsAppTemplate {
+  id          String   @id @default(uuid())
+  name        String
+  category    String   @default("MARKETING")
+  language    String   @default("en_US")
+  body        String
+  variables   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model WhatsAppMessage {
+  id                String    @id @default(uuid())
+  campaignId        String?
+  campaign          Campaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  leadId            String
+  lead              Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  employeeId        String?
+  employee          User?     @relation(fields: [employeeId], references: [id], onDelete: SetNull)
+  messageText       String
+  status            String    @default("PENDING")
+  whatsappMessageId String?
+  sentAt            DateTime?
+  readAt            DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([leadId])
+  @@index([status])
+}
+
+model Followup {
+  id                  String    @id @default(uuid())
+  leadId              String
+  lead                Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  assignedEmployeeId  String?
+  assignedEmployee    User?     @relation("AssignedFollowups", fields: [assignedEmployeeId], references: [id], onDelete: SetNull)
+  campaignId          String?
+  campaign            Campaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  channel             String    @default("EMAIL")
+  title               String
+  dueDate             String
+  completed           Boolean   @default(false)
+  completedAt         DateTime?
+  remarks             String?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@index([leadId])
+  @@index([assignedEmployeeId])
+  @@index([dueDate])
+  @@index([completed])
+}
+
+model Task {
+  id                  String    @id @default(uuid())
+  assignedEmployeeId  String
+  assignedEmployee    User      @relation("AssignedTasks", fields: [assignedEmployeeId], references: [id], onDelete: Cascade)
+  title               String
+  description         String?
+  priority            String    @default("MEDIUM")
+  status              String    @default("TODO")
+  dueDate             String?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@index([assignedEmployeeId])
+  @@index([status])
+}
+
+model ActivityLog {
+  id          String   @id @default(uuid())
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userName    String?
+  role        String?
+  action      String
+  module      String
+  description String
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+  @@index([action])
+  @@index([module])
+  @@index([createdAt])
+}
+
+model SuppressionList {
+  id        String   @id @default(uuid())
+  type      String
+  value     String
+  reason    String   @default("MANUAL")
+  createdAt DateTime @default(now())
+
+  @@unique([type, value])
+  @@index([value])
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  message   String
+  type      String   @default("INFO")
+  read      Boolean  @default(false)
+  link      String?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([read])
+}

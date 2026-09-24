@@ -1,0 +1,40 @@
+services:
+  # ============================================================================
+  # MarketingFlow Full-Stack / Backend Web Service on Render
+  # ============================================================================
+  - type: web
+    name: marketingflow-app
+    runtime: node
+    plan: free
+    region: oregon
+    buildCommand: npm run install:all && npm run build:client && npx prisma generate --schema=server/prisma/schema.postgresql.prisma
+    startCommand: node server/entrypoint.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: DATABASE_URL
+        fromDatabase:
+          name: marketingflow-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: 24h
+      - key: ENCRYPTION_KEY
+        value: marketingflow_32bytes_encryption!
+      - key: BASE_URL
+        value: https://marketingflow-app.onrender.com
+      - key: AUTO_SEED
+        value: "true"
+
+databases:
+  # ============================================================================
+  # Free PostgreSQL Database on Render
+  # ============================================================================
+  - name: marketingflow-db
+    plan: free
+    region: oregon
+    databaseName: marketingflow
+    user: marketingflow
